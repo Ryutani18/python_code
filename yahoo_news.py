@@ -1,29 +1,82 @@
+from selenium import webdriver
+import chromedriver_binary
 import requests
 import re
 import openpyxl
+import urllib.parse
 
-file_name = './nakamuranokadai.xlsx'
-sheet_name = 'Sheet1'
-urls = [
-  'https://news.yahoo.co.jp/comment/plugin/v1/full/?origin=https%3A%2F%2Fnews.yahoo.co.jp&sort=lost_points&order=desc&page=1&type=t&topic_id=20211228-00125292-wedge&space_id=2079510507&content_id=&full_page_url=https%3A%2F%2Fheadlines.yahoo.co.jp%2Fcm%2Farticlemain%3Fd%3D20211228-00125292-wedge-cn&comment_num=10&ref=&bkt=&flt=2&grp=&opttype=&disable_total_count=&compact=&compact_initial_view=&display_author_banner=off&mtestid=&display_blurred_comment=off&ua=Mozilla%2F5.0%20(Macintosh%3B%20Intel%20Mac%20OS%20X%2010_15_7)%20AppleWebKit%2F537.36%20(KHTML%2C%20like%20Gecko)%20Chrome%2F96.0.4664.55%20Safari%2F537.36',
-  'https://news.yahoo.co.jp/comment/plugin/v1/full/?origin=https%3A%2F%2Fnews.yahoo.co.jp&page=2&sort=lost_points&order=desc&type=t&topic_id=20211228-00125292-wedge&space_id=2079510507&content_id=&full_page_url=https%3A%2F%2Fheadlines.yahoo.co.jp%2Fcm%2Farticlemain%3Fd%3D20211228-00125292-wedge-cn&comment_num=10&ref=&bkt=&flt=2&grp=&opttype=&disable_total_count=&compact=&compact_initial_view=&display_author_banner=off&mtestid=&display_blurred_comment=off&ua=Mozilla%2F5.0%20(Macintosh%3B%20Intel%20Mac%20OS%20X%2010_15_7)%20AppleWebKit%2F537.36%20(KHTML%2C%20like%20Gecko)%20Chrome%2F96.0.4664.55%20Safari%2F537.36',
-  'https://news.yahoo.co.jp/comment/plugin/v1/full/?origin=https%3A%2F%2Fnews.yahoo.co.jp&page=3&sort=lost_points&order=desc&type=t&topic_id=20211228-00125292-wedge&space_id=2079510507&content_id=&full_page_url=https%3A%2F%2Fheadlines.yahoo.co.jp%2Fcm%2Farticlemain%3Fd%3D20211228-00125292-wedge-cn&comment_num=10&ref=&bkt=&flt=2&grp=&opttype=&disable_total_count=&compact=&compact_initial_view=&display_author_banner=off&mtestid=&display_blurred_comment=off&ua=Mozilla%2F5.0%20(Macintosh%3B%20Intel%20Mac%20OS%20X%2010_15_7)%20AppleWebKit%2F537.36%20(KHTML%2C%20like%20Gecko)%20Chrome%2F96.0.4664.55%20Safari%2F537.36',
-  'https://news.yahoo.co.jp/comment/plugin/v1/full/?origin=https%3A%2F%2Fnews.yahoo.co.jp&page=4&sort=lost_points&order=desc&type=t&topic_id=20211228-00125292-wedge&space_id=2079510507&content_id=&full_page_url=https%3A%2F%2Fheadlines.yahoo.co.jp%2Fcm%2Farticlemain%3Fd%3D20211228-00125292-wedge-cn&comment_num=10&ref=&bkt=&flt=2&grp=&opttype=&disable_total_count=&compact=&compact_initial_view=&display_author_banner=off&mtestid=&display_blurred_comment=off&ua=Mozilla%2F5.0%20(Macintosh%3B%20Intel%20Mac%20OS%20X%2010_15_7)%20AppleWebKit%2F537.36%20(KHTML%2C%20like%20Gecko)%20Chrome%2F96.0.4664.55%20Safari%2F537.36'
-]
+keyword = "中古バイク"
+enc = urllib.parse.quote(keyword)
+url = f"https://news.yahoo.co.jp/search?p={enc}&ei=utf-8"
+html = requests.get(url)
+pattern = '<div class="newsFeed_item_title">(.+?)<\/div>'
+article_names = re.findall(pattern, html.text)
+pattern = 'newsFeed_item_link" href="(.+?)"'
+article_urls = re.findall(pattern, html.text)
 
+for i in range(len(article_names)):
+    print(f"{i+1}. {article_names[i]}")
+
+print("どの記事を参照しますか？")
+n = int(input())
+article_name = article_names[n-1]
+
+file_name = f'./{article_name}.xlsx'
+sheet_name = 'Sheet'
 comments = []
-pattern = '<span class="cmtBody">(.+)<\/span>'
+names = []
+dates = []
+agrees = []
+disagrees = []
 
-for url in urls:
-  html = requests.get(url)
-  comment_elements = re.findall(pattern, html.text)
-  comment_elements.pop()
-  for element in comment_elements:
-    comments.append(re.sub('<br \/>','',element))
+comment_pattern = '<span class="cmtBody">(.+)<\/span>'
+name_pattern = '<h1 class="name yjxName">.+class="rapidnofollow">(.+)<\/a>'
+date_pattern = 'pubdate>\s+(.+)'
+agree_pattern = 'good votes-btn.+\s\s.+<span class="userNum">(.+)<\/span>'
+disagree_pattern = 'bad votes-btn.+\s\s.+<span class="userNum">(.+)<\/span>' 
 
-book = openpyxl.load_workbook(file_name)
+driver = webdriver.Chrome()
+i = 1
+while True:
+    article_url = f"{article_urls[n-1]}/comments?page={i}&t=t&order=recommended"
+    driver.get(article_url)
+    iframe = driver.find_element_by_class_name("news-comment-plguin-iframe")
+    src = iframe.get_attribute('src')
+    html = requests.get(src)
+    if re.search('この記事にはまだコメントがありません。', html.text):
+        print("Done")
+        break
+    comment_elements = re.findall(comment_pattern, html.text)
+    comment_elements.pop()
+    comment_elements = [re.sub('<br \/>','',element) for element in comment_elements]
+    name_elements = re.findall(name_pattern, html.text)
+    date_elements = re.findall(date_pattern, html.text)
+    agree_elements = re.findall(agree_pattern, html.text)
+    disagree_elements = re.findall(disagree_pattern, html.text)
+
+    comments += comment_elements
+    names += name_elements
+    dates += date_elements
+    agrees += agree_elements
+    disagrees += disagree_elements
+    i += 1
+
+try:
+    book = openpyxl.load_workbook(file_name)
+except FileNotFoundError:
+    book = openpyxl.Workbook()
 sheet = book[sheet_name]
+sheet['A'+str(1)] = "日付"
+sheet['B'+str(1)] = "名前"
+sheet['C'+str(1)] = "good"
+sheet['D'+str(1)] = "bad"
+sheet['E'+str(1)] = "コメント"
+
 for i in range(len(comments)):
-    sheet['A'+str(i+1)] = comments[i]
+    sheet['A'+str(i+3)] = dates[i]
+    sheet['B'+str(i+3)] = names[i]
+    sheet['C'+str(i+3)] = agrees[i]
+    sheet['D'+str(i+3)] = disagrees[i]
+    sheet['E'+str(i+3)] = comments[i]
 
 book.save(file_name)
