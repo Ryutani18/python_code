@@ -1,9 +1,8 @@
-from argparse import Action
 from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
-from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.by import By
 import chromedriver_binary
+import openpyxl
 import urllib.parse
 import time
 
@@ -30,6 +29,8 @@ n = int(input())
 article_name = article_names[n-1]
 article_link = article_links[n-1]
 
+file_name = f'{article_name}.xlsx'
+sheet_name = 'Sheet'
 comments = []
 driver = webdriver.Chrome()
 i = 1
@@ -46,23 +47,37 @@ while True:
         comments.append(elem.text)
     i += 1
 
+try:
+    book = openpyxl.load_workbook(file_name)
+except FileNotFoundError:
+    book = openpyxl.Workbook()
+sheet = book[sheet_name]
+
+for i in range(len(comments)):
+    sheet['A'+str(i+1)] = comments[i]
+
+book.save(file_name)
+
 driver.close()
 
 url = "https://textmining.userlocal.jp"
 driver = webdriver.Chrome()
 driver.get(url)
-actions = ActionChains(driver)
-
-time.sleep(5)
-
-for comment in comments:
-    actions.send_keys(comment).perform()
-    actions.send_keys(Keys.ENTER).perform()
 
 time.sleep(3)
+
+driver.find_element(by=By.CSS_SELECTOR, value="li.nav-item:nth-child(2)").click()
+driver.find_element(by=By.XPATH, value='//input[@name="document1[file]"]').send_keys(f"C:\\Users\\ryuta\\OneDrive\\ドキュメント\\VSCode\\Python\\{article_name}.xlsx")
 driver.find_element(by=By.XPATH, value='//input[@value="テキストマイニングする"]').click()
+
+time.sleep(2)
+driver.execute_script("window.scrollTo(0, 200);")
+driver.find_element(by=By.XPATH, value='//button[@class="ml-2 close"]').click()
+png = driver.find_element(by=By.XPATH, value='//div[@class="result-frame ul-d3-chart"]').screenshot_as_png
+
+with open('./screenshot.png', 'wb') as f:
+    f.write(png)
 
 time.sleep(5)
 
-driver.save_screenshot('screenshot.png')
 driver.close()
